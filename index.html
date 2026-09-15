@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>테니스 코트 실시간 예약 관리</title>
     <style>
-        /* 기존과 디자인(style)은 완전히 동일합니다 */
         body { font-family: 'Malgun Gothic', sans-serif; margin: 20px; background-color: #f4f7f6; }
         h2 { color: #2c3e50; text-align: center; }
         .input-section { background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
@@ -20,8 +19,8 @@
         button.delete-btn { padding: 6px 12px; background-color: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; }
         button.delete-btn:hover { background-color: #c0392b; }
         
-        /* 백그라운드 처리 중일 때 흐리게 표시하기 위한 스타일 */
         .pending { opacity: 0.5; pointer-events: none; }
+        .loading-text { color: #7f8c8d; font-weight: bold; padding: 20px !important; }
 
         @media screen and (max-width: 600px) {
             body { margin: 10px; }
@@ -62,7 +61,7 @@
     </div>
 
     <script>
-        // ⚠️ 여기에 구글 웹앱 URL을 꼭 다시 넣어주세요!
+        // ⚠️ 여기에 구글 앱스 스크립트 웹앱 URL을 꼭 다시 넣어주세요!
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby54JD4zqHmQCVAGGEjYSMFUr4_-SUS5_UMwMp2LSuM_uMyhZOGze71IbEQUC81xumG/exec";
 
         window.onload = function() {
@@ -70,31 +69,53 @@
         };
 
         function loadReservations() {
+            const tbody = document.getElementById('reservationList');
+            
+            // 1. 휴대폰(브라우저)에 예전에 저장해둔 데이터가 있는지 확인
+            const cachedData = localStorage.getItem('tennisData');
+            
+            if (cachedData) {
+                // 2. 저장된 데이터가 있다면 0.1초 만에 즉시 화면에 그려줌
+                renderTable(JSON.parse(cachedData));
+            } else {
+                // 저장된 데이터가 아예 처음 접속인 경우 로딩 표시
+                tbody.innerHTML = '<tr><td colspan="6" class="loading-text">데이터를 불러오는 중입니다...</td></tr>';
+            }
+
+            // 3. 화면을 띄워둔 채로 뒤에서 몰래 최신 데이터를 구글에서 가져옴
             fetch(SCRIPT_URL)
                 .then(res => res.json())
                 .then(data => {
-                    const tbody = document.getElementById('reservationList');
-                    tbody.innerHTML = ''; 
-
-                    data.forEach(item => {
-                        let displayTime = String(item.time);
-                        if (displayTime.includes('1899') || displayTime.includes('T')) displayTime = "오류 (삭제 요망)";
-                        if (displayTime.startsWith("'")) displayTime = displayTime.substring(1);
-
-                        const row = document.createElement('tr');
-                        row.id = 'row-' + item.id;
-                        row.innerHTML = `
-                            <td>${item.date}</td>
-                            <td>${displayTime}</td>
-                            <td>${item.court}</td>
-                            <td>${item.name}</td>
-                            <td>${item.note}</td>
-                            <td><button class="delete-btn" onclick="deleteReservation('${item.id}', this)">삭제</button></td>
-                        `;
-                        tbody.appendChild(row);
-                    });
+                    // 새로 가져온 데이터를 휴대폰에 덮어쓰기 저장
+                    localStorage.setItem('tennisData', JSON.stringify(data)); 
+                    // 화면도 최신 데이터로 업데이트
+                    renderTable(data); 
                 })
                 .catch(err => console.error("데이터 로딩 실패:", err));
+        }
+
+        // 표를 그리는 작업을 따로 분리한 함수
+        function renderTable(data) {
+            const tbody = document.getElementById('reservationList');
+            tbody.innerHTML = ''; 
+
+            data.forEach(item => {
+                let displayTime = String(item.time);
+                if (displayTime.includes('1899') || displayTime.includes('T')) displayTime = "오류 (삭제 요망)";
+                if (displayTime.startsWith("'")) displayTime = displayTime.substring(1);
+
+                const row = document.createElement('tr');
+                row.id = 'row-' + item.id;
+                row.innerHTML = `
+                    <td>${item.date}</td>
+                    <td>${displayTime}</td>
+                    <td>${item.court}</td>
+                    <td>${item.name}</td>
+                    <td>${item.note}</td>
+                    <td><button class="delete-btn" onclick="deleteReservation('${item.id}', this)">삭제</button></td>
+                `;
+                tbody.appendChild(row);
+            });
         }
 
         function addReservation() {
@@ -114,12 +135,12 @@
             const dateWithDay = `${dateValue} (${week[dateObj.getDay()]})`;
             const safeTime = "'" + time;
 
-            // 1. 화면에 먼저 임시로 띄우기 (즉시 반응)
+            // 추가할 때도 즉시 화면에 띄움
             const tempId = "temp-" + Date.now();
             const tbody = document.getElementById('reservationList');
             const row = document.createElement('tr');
             row.id = 'row-' + tempId;
-            row.className = 'pending'; // 저장되는 동안 약간 흐리게 표시
+            row.className = 'pending';
             row.innerHTML = `
                 <td>${dateWithDay}</td>
                 <td>${time}</td>
@@ -130,13 +151,11 @@
             `;
             tbody.appendChild(row);
 
-            // 입력칸 즉시 비우기
             document.getElementById('resCourt').value = '';
             document.getElementById('resName').value = '';
             document.getElementById('resNote').value = '';
             document.getElementById('resTime').value = '12:00';
 
-            // 2. 뒤에서 몰래 구글 시트에 저장하기
             fetch(SCRIPT_URL, {
                 method: "POST",
                 body: JSON.stringify({
@@ -149,24 +168,20 @@
                 })
             })
             .then(res => res.json())
-            .then(() => {
-                // 저장이 완료되면 전체 데이터를 다시 깔끔하게 불러옵니다.
-                loadReservations(); 
-            })
+            .then(() => loadReservations())
             .catch(err => {
                 alert("네트워크 오류로 저장되지 않았습니다.");
-                row.remove(); // 실패하면 임시로 띄운 줄 삭제
+                row.remove();
             });
         }
 
         function deleteReservation(id, buttonElement) {
             if(!confirm("정말 이 예약을 삭제하시겠습니까?")) return;
 
-            // 1. 화면에서 즉시 안 보이게 숨기기 (즉시 반응)
+            // 삭제할 때도 화면에서 0.1초 만에 먼저 숨김
             const row = buttonElement.closest('tr');
             row.style.display = 'none';
 
-            // 2. 뒤에서 몰래 구글 시트에서 지우기
             fetch(SCRIPT_URL, {
                 method: "POST",
                 body: JSON.stringify({
@@ -175,13 +190,10 @@
                 })
             })
             .then(res => res.json())
-            .then(() => {
-                // 완전히 삭제 성공하면 줄을 아예 없앰
-                row.remove();
-            })
+            .then(() => row.remove())
             .catch(err => {
                 alert("네트워크 오류로 삭제되지 않았습니다.");
-                row.style.display = ''; // 실패하면 다시 화면에 나타남
+                row.style.display = ''; 
             });
         }
     </script>
