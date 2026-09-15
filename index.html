@@ -19,6 +19,7 @@
         button.delete-btn { padding: 6px 12px; background-color: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; }
         button.delete-btn:hover { background-color: #c0392b; }
         
+        /* 백그라운드 처리 중일 때 흐리게 표시 */
         .pending { opacity: 0.5; pointer-events: none; }
         .loading-text { color: #7f8c8d; font-weight: bold; padding: 20px !important; }
 
@@ -68,33 +69,43 @@
             loadReservations();
         };
 
+        // 🌟 새로 추가된 기능: 데이터를 날짜와 시간순(오름차순)으로 자동 정렬해주는 함수
+        function sortData(data) {
+            return data.sort((a, b) => {
+                // "2026-09-19 (토)"에서 날짜 부분만 잘라냅니다.
+                const dateA = String(a.date).split(' ')[0];
+                const dateB = String(b.date).split(' ')[0];
+                
+                // 시간 앞에 따옴표가 있다면 제거합니다.
+                let timeA = String(a.time).replace("'", "");
+                let timeB = String(b.time).replace("'", "");
+                
+                // 날짜와 시간을 합쳐서 순서를 비교합니다. (예: 2026-09-1912:00)
+                return (dateA + timeA).localeCompare(dateB + timeB);
+            });
+        }
+
         function loadReservations() {
             const tbody = document.getElementById('reservationList');
-            
-            // 1. 휴대폰(브라우저)에 예전에 저장해둔 데이터가 있는지 확인
             const cachedData = localStorage.getItem('tennisData');
             
             if (cachedData) {
-                // 2. 저장된 데이터가 있다면 0.1초 만에 즉시 화면에 그려줌
-                renderTable(JSON.parse(cachedData));
+                // 캐시 데이터를 불러올 때도 무조건 정렬해서 보여줍니다.
+                let data = JSON.parse(cachedData);
+                renderTable(sortData(data));
             } else {
-                // 저장된 데이터가 아예 처음 접속인 경우 로딩 표시
                 tbody.innerHTML = '<tr><td colspan="6" class="loading-text">데이터를 불러오는 중입니다...</td></tr>';
             }
 
-            // 3. 화면을 띄워둔 채로 뒤에서 몰래 최신 데이터를 구글에서 가져옴
             fetch(SCRIPT_URL)
                 .then(res => res.json())
                 .then(data => {
-                    // 새로 가져온 데이터를 휴대폰에 덮어쓰기 저장
                     localStorage.setItem('tennisData', JSON.stringify(data)); 
-                    // 화면도 최신 데이터로 업데이트
-                    renderTable(data); 
+                    renderTable(sortData(data)); // 구글에서 가져온 진짜 데이터도 정렬해서 보여줍니다.
                 })
                 .catch(err => console.error("데이터 로딩 실패:", err));
         }
 
-        // 표를 그리는 작업을 따로 분리한 함수
         function renderTable(data) {
             const tbody = document.getElementById('reservationList');
             tbody.innerHTML = ''; 
@@ -106,6 +117,12 @@
 
                 const row = document.createElement('tr');
                 row.id = 'row-' + item.id;
+                
+                // 아직 구글에 저장 중인 새 항목은 흐리게 표시합니다.
+                if(item.isPending) {
+                    row.className = 'pending';
+                }
+
                 row.innerHTML = `
                     <td>${item.date}</td>
                     <td>${displayTime}</td>
@@ -134,22 +151,24 @@
             const week = ['일', '월', '화', '수', '목', '금', '토'];
             const dateWithDay = `${dateValue} (${week[dateObj.getDay()]})`;
             const safeTime = "'" + time;
-
-            // 추가할 때도 즉시 화면에 띄움
             const tempId = "temp-" + Date.now();
-            const tbody = document.getElementById('reservationList');
-            const row = document.createElement('tr');
-            row.id = 'row-' + tempId;
-            row.className = 'pending';
-            row.innerHTML = `
-                <td>${dateWithDay}</td>
-                <td>${time}</td>
-                <td>${court}</td>
-                <td>${name}</td>
-                <td>${note}</td>
-                <td><button class="delete-btn">...</button></td>
-            `;
-            tbody.appendChild(row);
+
+            // 입력하자마자 임시 데이터를 리스트에 넣고, 다시 '날짜순 정렬'을 실행하여 그립니다.
+            const cachedData = localStorage.getItem('tennisData');
+            let currentData = cachedData ? JSON.parse(cachedData) : [];
+            
+            currentData.push({
+                id: tempId,
+                date: dateWithDay,
+                time: time,
+                court: court,
+                name: name,
+                note: note,
+                isPending: true
+            });
+
+            // 임시 데이터까지 포함해서 날짜순 정렬 후 즉시 화면에 띄웁니다!
+            renderTable(sortData(currentData));
 
             document.getElementById('resCourt').value = '';
             document.getElementById('resName').value = '';
@@ -171,14 +190,13 @@
             .then(() => loadReservations())
             .catch(err => {
                 alert("네트워크 오류로 저장되지 않았습니다.");
-                row.remove();
+                loadReservations();
             });
         }
 
         function deleteReservation(id, buttonElement) {
             if(!confirm("정말 이 예약을 삭제하시겠습니까?")) return;
 
-            // 삭제할 때도 화면에서 0.1초 만에 먼저 숨김
             const row = buttonElement.closest('tr');
             row.style.display = 'none';
 
@@ -190,7 +208,16 @@
                 })
             })
             .then(res => res.json())
-            .then(() => row.remove())
+            .then(() => {
+                // 삭제 완료 후 캐시(휴대폰 기억)에서도 지워줍니다.
+                const cachedData = localStorage.getItem('tennisData');
+                if(cachedData) {
+                    let currentData = JSON.parse(cachedData);
+                    currentData = currentData.filter(item => String(item.id) !== String(id));
+                    localStorage.setItem('tennisData', JSON.stringify(currentData));
+                }
+                row.remove();
+            })
             .catch(err => {
                 alert("네트워크 오류로 삭제되지 않았습니다.");
                 row.style.display = ''; 
