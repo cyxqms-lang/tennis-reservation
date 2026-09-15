@@ -30,6 +30,7 @@
             border: 1px solid #ccc;
             border-radius: 4px;
             flex: 1;
+            min-width: 120px;
         }
         button.confirm-btn {
             padding: 10px 20px;
@@ -44,16 +45,25 @@
         button.confirm-btn:hover {
             background-color: #219150;
         }
+        
+        /* 📱 가로 스크롤을 위한 컨테이너 추가 */
+        .table-container {
+            width: 100%;
+            overflow-x: auto; /* 폰에서 표가 길면 좌우로 밀어서 볼 수 있게 함 */
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
         table {
             width: 100%;
             border-collapse: collapse;
-            background-color: white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-width: 700px; /* 표가 너무 찌그러지지 않도록 최소 너비 유지 */
         }
         th, td {
             border: 1px solid #ddd;
             padding: 12px;
             text-align: center;
+            white-space: nowrap; /* 글씨가 줄바꿈되지 않게 함 */
         }
         th {
             background-color: #34495e;
@@ -79,58 +89,6 @@
             text-align: center;
             margin-top: 10px;
         }
-
-        /* 📱 모바일 화면을 위한 카드 스타일 변환 */
-        @media screen and (max-width: 600px) {
-            body { margin: 10px; }
-            .input-section {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            .input-section input, button.confirm-btn {
-                width: 100%;
-                box-sizing: border-box;
-                margin-bottom: 5px;
-            }
-            
-            /* 표를 블록 형태의 카드로 바꿈 */
-            table, thead, tbody, th, td, tr { 
-                display: block; 
-            }
-            thead tr { 
-                display: none; /* 모바일에서는 헤더 숨김 */
-            }
-            tr { 
-                border: 1px solid #ddd; 
-                border-radius: 8px;
-                margin-bottom: 15px; 
-                background-color: white;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            }
-            td { 
-                border: none;
-                border-bottom: 1px solid #eee; 
-                position: relative;
-                padding-left: 35%; 
-                text-align: right;
-                min-height: 24px;
-            }
-            td:last-child {
-                border-bottom: none;
-            }
-            td:before { 
-                position: absolute;
-                top: 12px;
-                left: 15px;
-                width: 30%; 
-                padding-right: 10px; 
-                white-space: nowrap;
-                text-align: left;
-                font-weight: bold;
-                color: #34495e;
-                content: attr(data-label); /* JS에서 넣어준 라벨 표시 */
-            }
-        }
     </style>
 </head>
 <body>
@@ -147,20 +105,23 @@
         <div id="loading">데이터를 처리 중입니다... 잠시만 기다려주세요.</div>
     </div>
 
-    <table>
-        <thead>
-            <tr>
-                <th>날짜</th>
-                <th>시간</th>
-                <th>코트</th>
-                <th>예약자</th>
-                <th>비고</th>
-                <th>관리</th>
-            </tr>
-        </thead>
-        <tbody id="reservationList">
-        </tbody>
-    </table>
+    <!-- 표를 감싸는 table-container 추가 -->
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>날짜</th>
+                    <th>시간</th>
+                    <th>코트</th>
+                    <th>예약자</th>
+                    <th>비고</th>
+                    <th>관리</th>
+                </tr>
+            </thead>
+            <tbody id="reservationList">
+            </tbody>
+        </table>
+    </div>
 
     <script>
         // ⚠️ 여기에 구글 앱스 스크립트 웹앱 URL을 꼭 다시 넣어주세요!
@@ -178,25 +139,22 @@
                     tbody.innerHTML = ''; 
 
                     data.forEach(item => {
-                        // 시간 오류 처리 (구글 시트가 날짜로 변환해버린 경우)
                         let displayTime = String(item.time);
                         if (displayTime.includes('1899') || displayTime.includes('T')) {
-                            displayTime = "오류 (삭제 후 재작성 요망)";
+                            displayTime = "오류 (삭제 요망)";
                         }
-                        // 방어코드: 앞에 ' 기호가 있으면 화면에선 안 보이게 자름
                         if (displayTime.startsWith("'")) {
                             displayTime = displayTime.substring(1);
                         }
 
                         const row = document.createElement('tr');
-                        // 모바일을 위해 data-label 속성 추가
                         row.innerHTML = `
-                            <td data-label="날짜">${item.date}</td>
-                            <td data-label="시간">${displayTime}</td>
-                            <td data-label="코트">${item.court}</td>
-                            <td data-label="예약자">${item.name}</td>
-                            <td data-label="비고">${item.note}</td>
-                            <td data-label="관리"><button class="delete-btn" onclick="deleteReservation('${item.id}')">삭제</button></td>
+                            <td>${item.date}</td>
+                            <td>${displayTime}</td>
+                            <td>${item.court}</td>
+                            <td>${item.name}</td>
+                            <td>${item.note}</td>
+                            <td><button class="delete-btn" onclick="deleteReservation('${item.id}')">삭제</button></td>
                         `;
                         tbody.appendChild(row);
                     });
@@ -221,7 +179,6 @@
             const dayOfWeek = week[dateObj.getDay()];
             const dateWithDay = `${dateValue} (${dayOfWeek})`;
 
-            // 구글 시트가 맘대로 날짜로 바꾸는 것을 막기 위해 앞에 따옴표(') 추가
             const safeTime = "'" + time;
 
             showLoading(true);
