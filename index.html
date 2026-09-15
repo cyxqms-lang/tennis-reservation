@@ -5,89 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>테니스 코트 실시간 예약 관리</title>
     <style>
-        body {
-            font-family: 'Malgun Gothic', sans-serif;
-            margin: 20px;
-            background-color: #f4f7f6;
-        }
-        h2 {
-            color: #2c3e50;
-            text-align: center;
-        }
-        .input-section {
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-        .input-section input {
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            flex: 1;
-            min-width: 120px;
-        }
-        button.confirm-btn {
-            padding: 10px 20px;
-            background-color: #27ae60;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-            white-space: nowrap;
-        }
-        button.confirm-btn:hover {
-            background-color: #219150;
-        }
+        /* 기존과 디자인(style)은 완전히 동일합니다 */
+        body { font-family: 'Malgun Gothic', sans-serif; margin: 20px; background-color: #f4f7f6; }
+        h2 { color: #2c3e50; text-align: center; }
+        .input-section { background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        .input-section input { padding: 10px; border: 1px solid #ccc; border-radius: 4px; flex: 1; min-width: 120px; }
+        button.confirm-btn { padding: 10px 20px; background-color: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; white-space: nowrap; }
+        button.confirm-btn:hover { background-color: #219150; }
         
-        /* 📱 가로 스크롤을 위한 컨테이너 추가 */
-        .table-container {
-            width: 100%;
-            overflow-x: auto; /* 폰에서 표가 길면 좌우로 밀어서 볼 수 있게 함 */
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            min-width: 700px; /* 표가 너무 찌그러지지 않도록 최소 너비 유지 */
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 12px;
-            text-align: center;
-            white-space: nowrap; /* 글씨가 줄바꿈되지 않게 함 */
-        }
-        th {
-            background-color: #34495e;
-            color: white;
-        }
-        button.delete-btn {
-            padding: 6px 12px;
-            background-color: #e74c3c;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        button.delete-btn:hover {
-            background-color: #c0392b;
-        }
-        #loading {
-            display: none;
-            color: #7f8c8d;
-            font-size: 14px;
-            font-weight: bold;
-            width: 100%;
-            text-align: center;
-            margin-top: 10px;
+        .table-container { width: 100%; overflow-x: auto; background-color: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        table { width: 100%; border-collapse: collapse; white-space: nowrap; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
+        th { background-color: #34495e; color: white; }
+        button.delete-btn { padding: 6px 12px; background-color: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button.delete-btn:hover { background-color: #c0392b; }
+        
+        /* 백그라운드 처리 중일 때 흐리게 표시하기 위한 스타일 */
+        .pending { opacity: 0.5; pointer-events: none; }
+
+        @media screen and (max-width: 600px) {
+            body { margin: 10px; }
+            .input-section { padding: 15px; }
+            th, td { padding: 8px 4px; font-size: 12px; }
+            td:nth-child(5) { white-space: normal; word-break: break-all; min-width: 60px; }
         }
     </style>
 </head>
@@ -102,10 +42,8 @@
         <input type="text" id="resName" placeholder="예약자명">
         <input type="text" id="resNote" placeholder="비고 (예: 레슨, 매치)">
         <button class="confirm-btn" onclick="addReservation()">확인</button>
-        <div id="loading">데이터를 처리 중입니다... 잠시만 기다려주세요.</div>
     </div>
 
-    <!-- 표를 감싸는 table-container 추가 -->
     <div class="table-container">
         <table>
             <thead>
@@ -124,7 +62,7 @@
     </div>
 
     <script>
-        // ⚠️ 여기에 구글 앱스 스크립트 웹앱 URL을 꼭 다시 넣어주세요!
+        // ⚠️ 여기에 구글 웹앱 URL을 꼭 다시 넣어주세요!
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby54JD4zqHmQCVAGGEjYSMFUr4_-SUS5_UMwMp2LSuM_uMyhZOGze71IbEQUC81xumG/exec";
 
         window.onload = function() {
@@ -140,21 +78,18 @@
 
                     data.forEach(item => {
                         let displayTime = String(item.time);
-                        if (displayTime.includes('1899') || displayTime.includes('T')) {
-                            displayTime = "오류 (삭제 요망)";
-                        }
-                        if (displayTime.startsWith("'")) {
-                            displayTime = displayTime.substring(1);
-                        }
+                        if (displayTime.includes('1899') || displayTime.includes('T')) displayTime = "오류 (삭제 요망)";
+                        if (displayTime.startsWith("'")) displayTime = displayTime.substring(1);
 
                         const row = document.createElement('tr');
+                        row.id = 'row-' + item.id;
                         row.innerHTML = `
                             <td>${item.date}</td>
                             <td>${displayTime}</td>
                             <td>${item.court}</td>
                             <td>${item.name}</td>
                             <td>${item.note}</td>
-                            <td><button class="delete-btn" onclick="deleteReservation('${item.id}')">삭제</button></td>
+                            <td><button class="delete-btn" onclick="deleteReservation('${item.id}', this)">삭제</button></td>
                         `;
                         tbody.appendChild(row);
                     });
@@ -176,13 +111,32 @@
 
             const dateObj = new Date(dateValue);
             const week = ['일', '월', '화', '수', '목', '금', '토'];
-            const dayOfWeek = week[dateObj.getDay()];
-            const dateWithDay = `${dateValue} (${dayOfWeek})`;
-
+            const dateWithDay = `${dateValue} (${week[dateObj.getDay()]})`;
             const safeTime = "'" + time;
 
-            showLoading(true);
+            // 1. 화면에 먼저 임시로 띄우기 (즉시 반응)
+            const tempId = "temp-" + Date.now();
+            const tbody = document.getElementById('reservationList');
+            const row = document.createElement('tr');
+            row.id = 'row-' + tempId;
+            row.className = 'pending'; // 저장되는 동안 약간 흐리게 표시
+            row.innerHTML = `
+                <td>${dateWithDay}</td>
+                <td>${time}</td>
+                <td>${court}</td>
+                <td>${name}</td>
+                <td>${note}</td>
+                <td><button class="delete-btn">...</button></td>
+            `;
+            tbody.appendChild(row);
 
+            // 입력칸 즉시 비우기
+            document.getElementById('resCourt').value = '';
+            document.getElementById('resName').value = '';
+            document.getElementById('resNote').value = '';
+            document.getElementById('resTime').value = '12:00';
+
+            // 2. 뒤에서 몰래 구글 시트에 저장하기
             fetch(SCRIPT_URL, {
                 method: "POST",
                 body: JSON.stringify({
@@ -196,24 +150,23 @@
             })
             .then(res => res.json())
             .then(() => {
-                showLoading(false);
-                document.getElementById('resCourt').value = '';
-                document.getElementById('resName').value = '';
-                document.getElementById('resNote').value = '';
-                document.getElementById('resTime').value = '12:00';
+                // 저장이 완료되면 전체 데이터를 다시 깔끔하게 불러옵니다.
                 loadReservations(); 
             })
             .catch(err => {
-                showLoading(false);
-                alert("저장에 실패했습니다. 다시 시도해주세요.");
+                alert("네트워크 오류로 저장되지 않았습니다.");
+                row.remove(); // 실패하면 임시로 띄운 줄 삭제
             });
         }
 
-        function deleteReservation(id) {
+        function deleteReservation(id, buttonElement) {
             if(!confirm("정말 이 예약을 삭제하시겠습니까?")) return;
 
-            showLoading(true);
+            // 1. 화면에서 즉시 안 보이게 숨기기 (즉시 반응)
+            const row = buttonElement.closest('tr');
+            row.style.display = 'none';
 
+            // 2. 뒤에서 몰래 구글 시트에서 지우기
             fetch(SCRIPT_URL, {
                 method: "POST",
                 body: JSON.stringify({
@@ -223,17 +176,13 @@
             })
             .then(res => res.json())
             .then(() => {
-                showLoading(false);
-                loadReservations(); 
+                // 완전히 삭제 성공하면 줄을 아예 없앰
+                row.remove();
             })
             .catch(err => {
-                showLoading(false);
-                alert("삭제에 실패했습니다. 다시 시도해주세요.");
+                alert("네트워크 오류로 삭제되지 않았습니다.");
+                row.style.display = ''; // 실패하면 다시 화면에 나타남
             });
-        }
-
-        function showLoading(isLoading) {
-            document.getElementById('loading').style.display = isLoading ? 'block' : 'none';
         }
     </script>
 
