@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>테니스 코트 실시간 예약 관리</title>
+    <style>
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            margin: 20px;
+            background-color: #f4f7f6;
+        }
+        h2 {
+            color: #2c3e50;
+        }
+        .input-section {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .input-section input {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button.confirm-btn {
+            padding: 8px 16px;
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button.confirm-btn:hover {
+            background-color: #219150;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: center;
+        }
+        th {
+            background-color: #34495e;
+            color: white;
+        }
+        button.delete-btn {
+            padding: 5px 10px;
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button.delete-btn:hover {
+            background-color: #c0392b;
+        }
+        #loading {
+            display: none;
+            color: #7f8c8d;
+            font-size: 14px;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>🎾 테니스 코트 실시간 예약 내역 관리</h2>
+
+    <div class="input-section">
+        <input type="date" id="resDate">
+        <input type="time" id="resTime" value="12:00">
+        <input type="text" id="resCourt" placeholder="코트 (예: A코트)">
+        <input type="text" id="resName" placeholder="예약자명">
+        <input type="text" id="resNote" placeholder="비고 (예: 레슨, 매치)">
+        <button class="confirm-btn" onclick="addReservation()">확인</button>
+        <span id="loading">처리 중...</span>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>날짜</th>
+                <th>시간</th>
+                <th>코트</th>
+                <th>예약자</th>
+                <th>비고</th>
+                <th>관리</th>
+            </tr>
+        </thead>
+        <tbody id="reservationList">
+        </tbody>
+    </table>
+
+    <script>
+        // ⚠️ 2단계 7번에서 복사한 웹 앱 URL을 아래 따옴표 안에 넣어주세요!
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby54JD4zqHmQCVAGGEjYSMFUr4_-SUS5_UMwMp2LSuM_uMyhZOGze71IbEQUC81xumG/exec";
+
+        // 페이지가 열리면 스프레드시트에서 데이터를 불러옵니다.
+        window.onload = function() {
+            loadReservations();
+        };
+
+        // 데이터 불러오기 함수
+        function loadReservations() {
+            fetch(SCRIPT_URL)
+                .then(res => res.json())
+                .then(data => {
+                    const tbody = document.getElementById('reservationList');
+                    tbody.innerHTML = ''; // 기존 목록 초기화
+
+                    data.forEach(item => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${item.date}</td>
+                            <td>${item.time}</td>
+                            <td>${item.court}</td>
+                            <td>${item.name}</td>
+                            <td>${item.note}</td>
+                            <td><button class="delete-btn" onclick="deleteReservation('${item.id}')">삭제</button></td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                })
+                .catch(err => console.error("데이터 로딩 실패:", err));
+        }
+
+        // 예약 추가 함수
+        function addReservation() {
+            const dateValue = document.getElementById('resDate').value;
+            const time = document.getElementById('resTime').value;
+            const court = document.getElementById('resCourt').value;
+            const name = document.getElementById('resName').value;
+            const note = document.getElementById('resNote').value;
+
+            if(!dateValue || !time || !court || !name) {
+                alert("날짜, 시간, 코트, 예약자명은 필수 입력 사항입니다.");
+                return;
+            }
+
+            // 요일 계산
+            const dateObj = new Date(dateValue);
+            const week = ['일', '월', '화', '수', '목', '금', '토'];
+            const dayOfWeek = week[dateObj.getDay()];
+            const dateWithDay = `${dateValue} (${dayOfWeek})`;
+
+            showLoading(true);
+
+            fetch(SCRIPT_URL, {
+                method: "POST",
+                body: JSON.stringify({
+                    action: "add",
+                    date: dateWithDay,
+                    time: time,
+                    court: court,
+                    name: name,
+                    note: note
+                })
+            })
+            .then(res => res.json())
+            .then(() => {
+                showLoading(false);
+                // 입력창 초기화
+                document.getElementById('resCourt').value = '';
+                document.getElementById('resName').value = '';
+                document.getElementById('resNote').value = '';
+                document.getElementById('resTime').value = '12:00';
+                loadReservations(); // 표 다시 불러오기
+            })
+            .catch(err => {
+                showLoading(false);
+                alert("저장에 실패했습니다. 다시 시도해주세요.");
+            });
+        }
+
+        // 예약 삭제 함수
+        function deleteReservation(id) {
+            if(!confirm("정말 이 예약을 삭제하시겠습니까?")) return;
+
+            showLoading(true);
+
+            fetch(SCRIPT_URL, {
+                method: "POST",
+                body: JSON.stringify({
+                    action: "delete",
+                    id: id
+                })
+            })
+            .then(res => res.json())
+            .then(() => {
+                showLoading(false);
+                loadReservations(); // 표 다시 불러오기
+            })
+            .catch(err => {
+                showLoading(false);
+                alert("삭제에 실패했습니다. 다시 시도해주세요.");
+            });
+        }
+
+        function showLoading(isLoading) {
+            document.getElementById('loading').style.display = isLoading ? 'inline' : 'none';
+        }
+    </script>
+
+</body>
+</html>
