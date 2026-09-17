@@ -3,23 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>핫테 정모 코트 관리</title>
+    <title>테니스 코트 실시간 예약 관리</title>
     <style>
         body { font-family: 'Malgun Gothic', sans-serif; margin: 20px; background-color: #f4f7f6; }
         h2 { color: #2c3e50; text-align: center; }
         .input-section { background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
         .input-section input { padding: 10px; border: 1px solid #ccc; border-radius: 4px; flex: 1; min-width: 120px; }
-        button.confirm-btn { padding: 10px 20px; background-color: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; white-space: nowrap; }
+        
+        button.confirm-btn { padding: 10px 20px; background-color: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; white-space: nowrap; transition: background-color 0.3s;}
         button.confirm-btn:hover { background-color: #219150; }
         
         .table-container { width: 100%; overflow-x: auto; background-color: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         table { width: 100%; border-collapse: collapse; white-space: nowrap; }
         th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
         th { background-color: #34495e; color: white; }
+        
+        /* 버튼 스타일 설정 */
+        .btn-group { display: flex; gap: 5px; justify-content: center; }
+        button.edit-btn { padding: 6px 12px; background-color: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button.edit-btn:hover { background-color: #2980b9; }
         button.delete-btn { padding: 6px 12px; background-color: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; }
         button.delete-btn:hover { background-color: #c0392b; }
         
-        /* 백그라운드 처리 중일 때 흐리게 표시 */
         .pending { opacity: 0.5; pointer-events: none; }
         .loading-text { color: #7f8c8d; font-weight: bold; padding: 20px !important; }
 
@@ -28,12 +33,14 @@
             .input-section { padding: 15px; }
             th, td { padding: 8px 4px; font-size: 12px; }
             td:nth-child(5) { white-space: normal; word-break: break-all; min-width: 60px; }
+            /* 수정, 삭제 버튼을 가로로 유지하여 스크롤을 밀어야 보이게 함 */
+            td:last-child { min-width: 110px; } 
         }
     </style>
 </head>
 <body>
 
-    <h2>🎾 핫테 정모 코트 관리</h2>
+    <h2>🎾 테니스 코트 실시간 예약</h2>
 
     <div class="input-section">
         <input type="date" id="resDate">
@@ -41,7 +48,7 @@
         <input type="text" id="resCourt" placeholder="코트 (예: A코트)">
         <input type="text" id="resName" placeholder="예약자명">
         <input type="text" id="resNote" placeholder="비고 (예: 레슨, 매치)">
-        <button class="confirm-btn" onclick="addReservation()">확인</button>
+        <button id="confirmBtn" class="confirm-btn" onclick="addReservation()">확인</button>
     </div>
 
     <div class="table-container">
@@ -63,24 +70,20 @@
 
     <script>
         // ⚠️ 여기에 구글 앱스 스크립트 웹앱 URL을 꼭 다시 넣어주세요!
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby54JD4zqHmQCVAGGEjYSMFUr4_-SUS5_UMwMp2LSuM_uMyhZOGze71IbEQUC81xumG/exec";
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxUDr9jrQtudyAV1dBEAkrxshddQrco60gC7uR4-cA9cEYdfFVUR0vxA6wPYKIMSu1OEQ/exec";
+        
+        let editingId = null; // 현재 수정 중인 데이터의 ID를 기억하는 변수
 
         window.onload = function() {
             loadReservations();
         };
 
-        // 🌟 새로 추가된 기능: 데이터를 날짜와 시간순(오름차순)으로 자동 정렬해주는 함수
         function sortData(data) {
             return data.sort((a, b) => {
-                // "2026-09-19 (토)"에서 날짜 부분만 잘라냅니다.
                 const dateA = String(a.date).split(' ')[0];
                 const dateB = String(b.date).split(' ')[0];
-                
-                // 시간 앞에 따옴표가 있다면 제거합니다.
                 let timeA = String(a.time).replace("'", "");
                 let timeB = String(b.time).replace("'", "");
-                
-                // 날짜와 시간을 합쳐서 순서를 비교합니다. (예: 2026-09-1912:00)
                 return (dateA + timeA).localeCompare(dateB + timeB);
             });
         }
@@ -90,9 +93,7 @@
             const cachedData = localStorage.getItem('tennisData');
             
             if (cachedData) {
-                // 캐시 데이터를 불러올 때도 무조건 정렬해서 보여줍니다.
-                let data = JSON.parse(cachedData);
-                renderTable(sortData(data));
+                renderTable(sortData(JSON.parse(cachedData)));
             } else {
                 tbody.innerHTML = '<tr><td colspan="6" class="loading-text">데이터를 불러오는 중입니다...</td></tr>';
             }
@@ -101,7 +102,7 @@
                 .then(res => res.json())
                 .then(data => {
                     localStorage.setItem('tennisData', JSON.stringify(data)); 
-                    renderTable(sortData(data)); // 구글에서 가져온 진짜 데이터도 정렬해서 보여줍니다.
+                    renderTable(sortData(data));
                 })
                 .catch(err => console.error("데이터 로딩 실패:", err));
         }
@@ -117,11 +118,7 @@
 
                 const row = document.createElement('tr');
                 row.id = 'row-' + item.id;
-                
-                // 아직 구글에 저장 중인 새 항목은 흐리게 표시합니다.
-                if(item.isPending) {
-                    row.className = 'pending';
-                }
+                if(item.isPending) row.className = 'pending';
 
                 row.innerHTML = `
                     <td>${item.date}</td>
@@ -129,10 +126,43 @@
                     <td>${item.court}</td>
                     <td>${item.name}</td>
                     <td>${item.note}</td>
-                    <td><button class="delete-btn" onclick="deleteReservation('${item.id}', this)">삭제</button></td>
+                    <td>
+                        <div class="btn-group">
+                            <button class="edit-btn" onclick="startEdit('${item.id}')">수정</button>
+                            <button class="delete-btn" onclick="deleteReservation('${item.id}', this)">삭제</button>
+                        </div>
+                    </td>
                 `;
                 tbody.appendChild(row);
             });
+        }
+
+        // 🌟 수정 버튼을 눌렀을 때 실행되는 함수
+        function startEdit(id) {
+            const cachedData = localStorage.getItem('tennisData');
+            if(!cachedData) return;
+            
+            const data = JSON.parse(cachedData);
+            const item = data.find(d => String(d.id) === String(id));
+            
+            if(item) {
+                // 입력칸에 기존 데이터를 채워 넣습니다.
+                document.getElementById('resDate').value = String(item.date).split(' ')[0];
+                document.getElementById('resTime').value = String(item.time).replace("'", "");
+                document.getElementById('resCourt').value = item.court;
+                document.getElementById('resName').value = item.name;
+                document.getElementById('resNote').value = item.note;
+                
+                editingId = id; // 수정 모드 켜기
+                
+                // 버튼 색과 글자를 바꿔서 수정 중임을 알립니다.
+                const confirmBtn = document.getElementById('confirmBtn');
+                confirmBtn.innerText = '수정 완료';
+                confirmBtn.style.backgroundColor = '#f39c12'; // 주황색
+                
+                // 화면을 맨 위로 올려서 입력창을 보여줍니다.
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
         }
 
         function addReservation() {
@@ -151,34 +181,44 @@
             const week = ['일', '월', '화', '수', '목', '금', '토'];
             const dateWithDay = `${dateValue} (${week[dateObj.getDay()]})`;
             const safeTime = "'" + time;
-            const tempId = "temp-" + Date.now();
+            
+            const isEditMode = editingId !== null;
+            const targetId = isEditMode ? editingId : "temp-" + Date.now();
+            const actionType = isEditMode ? "edit" : "add";
 
-            // 입력하자마자 임시 데이터를 리스트에 넣고, 다시 '날짜순 정렬'을 실행하여 그립니다.
             const cachedData = localStorage.getItem('tennisData');
             let currentData = cachedData ? JSON.parse(cachedData) : [];
             
+            // 수정 모드라면 기존 데이터를 폰 화면에서 먼저 지웁니다.
+            if(isEditMode) {
+                currentData = currentData.filter(item => String(item.id) !== String(targetId));
+            }
+            
+            // 화면에 먼저 반영할 임시 데이터를 넣습니다.
             currentData.push({
-                id: tempId,
-                date: dateWithDay,
-                time: time,
-                court: court,
-                name: name,
-                note: note,
-                isPending: true
+                id: targetId, date: dateWithDay, time: time, 
+                court: court, name: name, note: note, isPending: true
             });
 
-            // 임시 데이터까지 포함해서 날짜순 정렬 후 즉시 화면에 띄웁니다!
             renderTable(sortData(currentData));
 
+            // 입력칸 초기화 및 버튼 원래대로 되돌리기
             document.getElementById('resCourt').value = '';
             document.getElementById('resName').value = '';
             document.getElementById('resNote').value = '';
             document.getElementById('resTime').value = '12:00';
+            
+            editingId = null;
+            const confirmBtn = document.getElementById('confirmBtn');
+            confirmBtn.innerText = '확인';
+            confirmBtn.style.backgroundColor = '#27ae60';
 
+            // 뒤에서 구글 시트에 데이터 전송 (저장 또는 수정)
             fetch(SCRIPT_URL, {
                 method: "POST",
                 body: JSON.stringify({
-                    action: "add",
+                    action: actionType,
+                    id: targetId,
                     date: dateWithDay,
                     time: safeTime,
                     court: court,
@@ -189,7 +229,7 @@
             .then(res => res.json())
             .then(() => loadReservations())
             .catch(err => {
-                alert("네트워크 오류로 저장되지 않았습니다.");
+                alert("네트워크 오류로 처리되지 않았습니다.");
                 loadReservations();
             });
         }
@@ -202,14 +242,10 @@
 
             fetch(SCRIPT_URL, {
                 method: "POST",
-                body: JSON.stringify({
-                    action: "delete",
-                    id: id
-                })
+                body: JSON.stringify({ action: "delete", id: id })
             })
             .then(res => res.json())
             .then(() => {
-                // 삭제 완료 후 캐시(휴대폰 기억)에서도 지워줍니다.
                 const cachedData = localStorage.getItem('tennisData');
                 if(cachedData) {
                     let currentData = JSON.parse(cachedData);
